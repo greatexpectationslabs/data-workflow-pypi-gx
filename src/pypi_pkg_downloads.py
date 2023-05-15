@@ -1,10 +1,4 @@
 # Databricks notebook source
-# notebook-scoped install of dependencies not supplied by databricks runtime
-# note: can also do a cluster-scoped install
-%pip install great-expectations>=0.16.6 pandas-gbq>=0.19.1
-
-# COMMAND ----------
-
 # import custom utility modules
 from utils import repo_utils, gx_utils
 from utils.notebook_utils import Notebook

@@ -145,3 +145,6 @@ Pipfile.lock
 
 # notebook-scoped installs of python libraries
 \=*
+
+# scratch work
+*scratch*

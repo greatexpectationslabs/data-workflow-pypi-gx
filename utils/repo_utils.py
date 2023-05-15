@@ -113,4 +113,9 @@ def get_repo_config(config_file: str) -> RepoConfig:
     rc = RepoConfig.to_dataclass(config)
     rc.set_nb_params()
 
+    #import databricks utils from another repo
+    path_utils = "/Workspace/Repos/prod/databricks-utilities"
+    if not path_utils in sys.path:
+        sys.path.append(path_utils)
+
     return rc

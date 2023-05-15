@@ -5,18 +5,15 @@
 
 # COMMAND ----------
 
-# clear notebook parameters
-dbutils.widgets.removeAll()
-
-# COMMAND ----------
-
 # import custom utility modules
 from utils import repo_utils, gx_utils
 from utils.notebook_utils import Notebook
+import spark_utils
 
 # other required imports
 import pandas as pd
 from pandas_gbq import read_gbq
+from pyspark.sql import functions as F
 
 # COMMAND ----------
 
@@ -95,7 +92,7 @@ df.info()
 # get a gx validator using the expectation suite in RepoConfig
 # if "overwrite=True" the suite will be overwritten and given default validations
 validator = gx_utils.default_validator(
-    pandas_df=df, date_range=date_range, overwrite=True
+    pandas_df=df, date_range=date_range, overwrite=False
 )
 
 # COMMAND ----------
@@ -128,3 +125,76 @@ results.check_results(failures_allowed=0)
 
 # list failures from validation results
 results.list_failures()
+
+# COMMAND ----------
+
+# column order
+select_cols = [
+    "download_time",
+    "country_code",
+    "file_type",
+    "gx",
+    "py",
+    "installer",
+    "distro",
+    "system",
+    "dt",
+]
+
+# transform pandas dataframe w/ spark
+df_spark = (
+    spark.createDataFrame(df)
+    .withColumnRenamed("pkg_version", "gx")
+    .withColumnRenamed("python_version", "py")
+    .withColumn(
+        "installer",
+        F.struct(
+            F.col("installer_name").alias("name"),
+            F.col("installer_version").alias("version"),
+        ),
+    )
+    .withColumn(
+        "distro",
+        F.struct(
+            F.col("distro_name").alias("name"),
+            F.col("distro_version").alias("version"),
+        ),
+    )
+    .withColumn(
+        "system",
+        F.struct(
+            F.col("system_name").alias("name"),
+            F.col("system_version").alias("version"),
+        ),
+    )
+    .select(*[F.col(col) for col in select_cols])
+)
+
+# COMMAND ----------
+
+# define the output table schema and name
+target = spark_utils.HiveTable(
+    name=f"oss_events.pypi_downloads",
+    schema_definition="""
+    {0} table {1} 
+    (
+    download_time timestamp comment "timestamp of download", 
+    country_code string comment "2-digit ISO country code", 
+    file_type string comment "type of file downloaded",
+    gx string comment "gx release version",
+    py string comment "python release version",
+    installer struct<name: string, version: string> comment "installer name and version", 
+    distro struct<name: string, version: string> comment "distro name and version",
+    system struct<name: string, version: string> comment "system name and version"
+    )
+    partitioned by (dt date comment "partition date %Y-%m-%d")
+    comment "downloads of gx oss from python package index"
+    """,
+)
+
+target.attributes
+
+# COMMAND ----------
+
+# write to target table in hive metastore
+target.insert_into(df_spark)

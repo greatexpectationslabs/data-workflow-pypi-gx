@@ -117,8 +117,8 @@ class Notebook:
         self.repo = self.get_repo()
         self.branch = self.get_branch()
         self.config_file = find_config_file()
-        self.runtime_version = self.get_runtime_version()
-        self.valid_runtime = self.valid_runtime()
+        # self.runtime_version = self.get_runtime_version()
+        # self.valid_runtime = self.valid_runtime()
         self.attributes: dict[str] = {
             k: v for k, v in self.__dict__.items() if not k in ["dbutils", "context"]
         }

@@ -117,8 +117,6 @@ class Notebook:
         self.repo = self.get_repo()
         self.branch = self.get_branch()
         self.config_file = find_config_file()
-        self.runtime_version = self.get_runtime_version()
-        self.valid_runtime = self.valid_runtime()
         self.attributes: dict[str] = {
             k: v for k, v in self.__dict__.items() if not k in ["dbutils", "context"]
         }
@@ -160,33 +158,6 @@ class Notebook:
 
     def get_branch(self) -> Union[str, None]:
         return self.context.get("extraContext").get("mlflowGitReference")
-
-    def get_runtime_version(self) -> Union[str, None]:
-        pat = r"(^\d{1,2}\.\d{1,2}).*"
-        context = self.get_context()
-        full_version = context.get("tags").get("sparkVersion")
-        re_match = re.search(pat, full_version)
-        return re_match.group(1) if re_match else None
-
-    def valid_runtime(self) -> bool:
-        pat = r"(^\d{1,2})\.\d{1,2}"
-        major_version = re.search(pat, self.runtime_version).group(1)
-
-        if not major_version:
-            print(
-                "Unknown Databricks Runtime version. Please note that this repo requires a cluster running Databricks Runtime 12.0 or higher."
-            )
-            return False
-
-        if int(major_version) < 12:
-            raise DatabricksRuntimeException(
-                f"This repo requires a cluster running Databricks Runtime 12.0 or higher but your runtime is {self.runtime_version}."
-            )
-            return False
-        
-        else:
-            return True
-
 
 def find_config_file() -> str:
     paths = []

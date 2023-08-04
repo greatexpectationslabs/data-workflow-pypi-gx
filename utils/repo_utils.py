@@ -1,4 +1,4 @@
-from utils import notebook_utils
+from utils import notebook_utils, spark_utils
 import pandas_gbq
 from google.oauth2 import service_account
 from typing import Optional, Union
@@ -6,6 +6,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 
 import great_expectations as gx
+from ruamel.yaml import YAML
 from great_expectations.data_context.data_context.ephemeral_data_context import (
     EphemeralDataContext as Context,
 )
@@ -13,6 +14,12 @@ from great_expectations.data_context.data_context.ephemeral_data_context import 
 import inspect
 import os
 import sys
+
+from pyspark.sql import SparkSession
+from pyspark.dbutils import DBUtils
+
+spark = SparkSession.builder.getOrCreate()
+dbutils = DBUtils(spark)
 
 
 @dataclass
@@ -27,7 +34,6 @@ class RepoConfig:
     repo_directory: Optional[str] = "dev"
     repo_name: Optional[str] = None
     bigquery_creds_file: Optional[str] = None
-    gx_connector_name: Optional[str] = "pandas_runtime"
     params: dict[str] = field(
         default_factory=lambda: {
             "param_dt_begin": notebook_utils.default_query_date(),
@@ -37,6 +43,12 @@ class RepoConfig:
     )
     gx_version: str = gx.__version__
     gx_dir: Optional[str] = None
+    gx_cloud_base_url: str = "https://api.greatexpectations.io"
+    gx_cloud_organization_id: str = "3cd57c8a-611b-4393-a800-b633f0137c74"
+    gx_cloud_access_token: str = dbutils.secrets.get(
+        scope="gx-cloud", key="sc_analytics_admin_token"
+    )
+    gx_connector_name: Optional[str] = "pandas_runtime"
     batch_ids: dict[str, str] = field(
         default_factory=lambda: {
             "batch_ids": {"dt": notebook_utils.default_query_date()}
@@ -44,6 +56,7 @@ class RepoConfig:
     )
 
     def __post_init__(self):
+        self.cloud_env_vars: list[str] = self.set_cloud_env_vars()
         self.asset_name: str = self.nb_name
         self.datasource_name: str = f"{self.nb_name}_{self.gx_connector_name}"
         self.expectation_suite_name: str = f"{self.nb_name}_{self.gx_connector_name}"
@@ -67,6 +80,22 @@ class RepoConfig:
                 for key, val in inspect.signature(RepoConfig).parameters.items()
             }
         )
+
+    def set_cloud_env_vars(self) -> list[str]:
+        """
+        Use os.environ to set gx cloud credentials
+        """
+
+        os_vars: dict[str] = {
+            "GE_CLOUD_BASE_URL": self.gx_cloud_base_url,
+            "GE_CLOUD_ORGANIZATION_ID": self.gx_cloud_organization_id,
+            "GE_CLOUD_ACCESS_TOKEN": self.gx_cloud_access_token,
+        }
+
+        for k, v in os_vars.items():
+            os.environ[k] = v
+
+        return [var for var in os.environ if var in os_vars.keys()]
 
     def create_gx_dir(self) -> str:
         """
@@ -105,11 +134,36 @@ class RepoConfig:
         return pandas_gbq.context
 
 
-def get_repo_config(config_file: str) -> RepoConfig:
+def read_yaml(path: str):
+    """
+    Load yaml file from path
+    """
+    yaml = YAML()
+    with open(path, "r") as f:
+        return yaml.load(f)
+
+
+def find_config_file() -> str:
+    paths = []
+    depths = [".", "../", "../../", "../../.."]
+    for depth in depths:
+        for root, dirs, files in os.walk(depth):
+            for file in files:
+                if file.lower() == "config.yml":
+                    paths.append(os.path.join(root, file))
+    res = paths
+    res_list = [r for r in res if r == "config.yml" or r.endswith("./config.yml")]
+    return res[0]
+
+
+def get_repo_config(config_file: Optional[str] = None) -> RepoConfig:
     """
     Get a RepoConfig object from a config.yml file
     """
-    config = notebook_utils.read_yaml(config_file)
+    if not config_file:
+        config_file = find_config_file()
+    
+    config = read_yaml(config_file)
     rc = RepoConfig.to_dataclass(config)
     rc.set_nb_params()
 

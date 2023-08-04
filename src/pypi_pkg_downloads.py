@@ -1,38 +1,21 @@
 # Databricks notebook source
-# notebook-scoped install of dependencies not supplied by databricks runtime
-# note: can also do a cluster-scoped install
-%pip install great-expectations>=0.16.13 pandas-gbq>=0.19.1
-
-# COMMAND ----------
-
-# clear notebook parameters
-dbutils.widgets.removeAll()
 
 # COMMAND ----------
 
 # import custom utility modules
-from utils import repo_utils, gx_utils
-from utils.notebook_utils import Notebook
+from utils import repo_utils, gx_utils, spark_utils
 
 # other required imports
 from datetime import datetime, timedelta
 import pandas as pd
 from pandas_gbq import read_gbq
-
-# COMMAND ----------
-
-# create a Notebook
-# contains attributes for notebook, filestystem, git, etc.
-nb = Notebook()
-
-# show attributes
-nb.attributes
+from pyspark.sql import functions as F
 
 # COMMAND ----------
 
 # create a RepoConfig
 # contains attributes for notebook, parameters, config, etc.
-rc = repo_utils.get_repo_config(config_file=nb.config_file)
+rc = repo_utils.get_repo_config()
 
 # show attributes
 rc.attributes
@@ -97,45 +80,73 @@ df.info()
 
 # COMMAND ----------
 
-# get a gx validator using the expectation suite in RepoConfig
-# if overwrite=True:
-# - a new validator object will be created using default validaiton rules
-# - the expecation suite on disk will be overwritten
-# if overwrite=False: 
-# - returns expectation suite from disk if exists
-# - DataContextError if expectation suite does not exist
-# -- change to overwrite=True to create suite for first time
-# -- subsequently can use overwrite=False
+# column order
+select_cols = [
+    "download_time",
+    "country_code",
+    "file_type",
+    "gx",
+    "py",
+    "installer",
+    "distro",
+    "system",
+    "dt",
+]
 
-validator = gx_utils.default_validator(
-    pandas_df=df, date_range=date_range, overwrite=True
+# transform pandas dataframe w/ spark
+df_spark = (
+    spark.createDataFrame(df)
+    .withColumnRenamed("pkg_version", "gx")
+    .withColumnRenamed("python_version", "py")
+    .withColumn(
+        "installer",
+        F.struct(
+            F.col("installer_name").alias("name"),
+            F.col("installer_version").alias("version"),
+        ),
+    )
+    .withColumn(
+        "distro",
+        F.struct(
+            F.col("distro_name").alias("name"),
+            F.col("distro_version").alias("version"),
+        ),
+    )
+    .withColumn(
+        "system",
+        F.struct(
+            F.col("system_name").alias("name"),
+            F.col("system_version").alias("version"),
+        ),
+    )
+    .select(*[F.col(col) for col in select_cols])
 )
 
 # COMMAND ----------
 
-# create a checkpoint for validating pandas dataframe against expectation suite
-checkpoint = gx_utils.default_checkpoint(
-    pandas_df=df,
-    validator=validator,
-    evaluation_parameters={"min_ts": min(ts_range), "max_ts": max(ts_range)},
+# define the output table schema and name
+target = spark_utils.HiveTable(
+    name=f"oss_events.pypi_downloads",
+    schema_definition="""
+    {0} table {1} 
+    (
+    download_time timestamp comment "timestamp of download", 
+    country_code string comment "2-digit ISO country code", 
+    file_type string comment "type of file downloaded",
+    gx string comment "gx release version",
+    py string comment "python release version",
+    installer struct<name: string, version: string> comment "installer name and version", 
+    distro struct<name: string, version: string> comment "distro name and version",
+    system struct<name: string, version: string> comment "system name and version"
+    )
+    partitioned by (dt date comment "partition date %Y-%m-%d")
+    comment "downloads of gx oss from python package index"
+    """,
 )
 
-# COMMAND ----------
-
-# run the checkpoint against the validator
-checkpoint_run = checkpoint.run()
+target.attributes
 
 # COMMAND ----------
 
-# create a results object
-results = gx_utils.CheckpointRunResult(checkpoint_run)
-
-# COMMAND ----------
-
-# raise an error if expecations failed > expectations failures allowed
-results.check_results(failures_allowed=0)
-
-# COMMAND ----------
-
-# list failures from validation results
-results.list_failures()
+# write to target table in hive metastore
+target.insert_into(df_spark)

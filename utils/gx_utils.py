@@ -23,23 +23,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 from pandas.core.frame import DataFrame as PandasDataFrame
 
-
-def find_config_file() -> str:
-    paths = []
-    depths = [".", "../", "../../", "../../.."]
-    for depth in depths:
-        for root, dirs, files in os.walk(depth):
-            for file in files:
-                if file.lower() == "config.yml":
-                    paths.append(os.path.join(root, file))
-    res = paths
-    res_list = [r for r in res if r == "config.yml" or r.endswith("./config.yml")]
-    return res[0]
-
-
 # path to repo config file
-rc = get_repo_config(find_config_file())
-
+rc = get_repo_config()
 
 def default_context(pandas_df: PandasDataFrame) -> Context:
     """

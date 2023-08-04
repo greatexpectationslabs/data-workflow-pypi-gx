@@ -1,7 +1,7 @@
 # assumed directory structure is: /Workspace/repos/{repo_directory}/{repo_name}
 
 # {repo_directory} in assumed directory structure
-repo_directory: "dev"
+repo_directory: "prod"
 
 # {repo_name} in assumed directory structure
 repo_name: "pypi-downloads"
@@ -13,4 +13,4 @@ bigquery_creds_file: ".bigquery_service_account_creds.json"
 gx_dir: "great_expectations"
 
 # provide a name to help identify the GX data connector type
-gx_connector_name: "pandas_fluent"
+gx_connector_name: "pandas_runtime"

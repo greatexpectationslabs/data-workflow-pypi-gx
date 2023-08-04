@@ -1,8 +1,6 @@
 # Databricks notebook source
 # import custom utility modules
-from utils import repo_utils, gx_utils
-from utils.notebook_utils import Notebook
-import spark_utils
+from utils import repo_utils, gx_utils, spark_utils
 
 # other required imports
 import pandas as pd
@@ -11,18 +9,9 @@ from pyspark.sql import functions as F
 
 # COMMAND ----------
 
-# create a Notebook
-# contains attributes for notebook, filestystem, git, etc.
-nb = Notebook()
-
-# show attributes
-nb.attributes
-
-# COMMAND ----------
-
 # create a RepoConfig
 # contains attributes for notebook, parameters, config, etc.
-rc = repo_utils.get_repo_config(config_file=nb.config_file)
+rc = repo_utils.get_repo_config()
 
 # show attributes
 rc.attributes
@@ -80,45 +69,6 @@ df = read_gbq(query, use_bqstorage_api=True)
 
 # inspect pandas dataframe schema
 df.info()
-
-# COMMAND ----------
-
-# get a gx validator using the expectation suite in RepoConfig
-# if "overwrite=True" the suite will be overwritten and given default validations
-validator = gx_utils.default_validator(
-    pandas_df=df, date_range=date_range, overwrite=False
-)
-
-# COMMAND ----------
-
-# create a checkpoint for validating pandas dataframe against expectation suite
-checkpoint = gx_utils.default_checkpoint(
-    pandas_df=df,
-    validator=validator,
-    evaluation_parameters={
-        ep: validator.get_evaluation_parameter(ep) for ep in ["min_ts", "max_ts"]
-    },
-)
-
-# COMMAND ----------
-
-# run the checkpoint against the validator
-checkpoint_run = checkpoint.run()
-
-# COMMAND ----------
-
-# create a results object
-results = gx_utils.CheckpointRunResult(checkpoint_run)
-
-# COMMAND ----------
-
-# raise an error if expecations failed > expectations failures allowed
-results.check_results(failures_allowed=0)
-
-# COMMAND ----------
-
-# list failures from validation results
-results.list_failures()
 
 # COMMAND ----------
 

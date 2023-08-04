@@ -159,6 +159,7 @@ class Notebook:
     def get_branch(self) -> Union[str, None]:
         return self.context.get("extraContext").get("mlflowGitReference")
 
+    
 def find_config_file() -> str:
     paths = []
     depths = [".", "../", "../../", "../../.."]

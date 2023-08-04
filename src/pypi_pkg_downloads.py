@@ -1,8 +1,12 @@
 # Databricks notebook source
+
+# COMMAND ----------
+
 # import custom utility modules
 from utils import repo_utils, gx_utils, spark_utils
 
 # other required imports
+from datetime import datetime, timedelta
 import pandas as pd
 from pandas_gbq import read_gbq
 from pyspark.sql import functions as F
@@ -27,11 +31,15 @@ date_range = [
     dbutils.widgets.get("param_dt_end"),
 ]
 
+ts_range = [
+    pd.Timestamp(date_range[0], tz="UTC"),
+    pd.Timestamp(date_range[1], tz="UTC") + timedelta(hours=23, minutes=59, seconds=59),
+]
+
 pypi_pkg = dbutils.widgets.get("param_pypi_pkg")
 
-
 print(
-    f"Querying PyPI downloads of {pypi_pkg} from '{date_range[0]}' to '{date_range[1]}'."
+    f"Querying PyPI downloads of {pypi_pkg} with UTC timestamps between '{ts_range[0]}' and '{ts_range[1]}'."
 )
 
 # COMMAND ----------

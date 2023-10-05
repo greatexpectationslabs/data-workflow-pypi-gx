@@ -46,7 +46,7 @@ class RepoConfig:
     gx_cloud_base_url: str = "https://api.greatexpectations.io"
     gx_cloud_organization_id: str = "3cd57c8a-611b-4393-a800-b633f0137c74"
     gx_cloud_access_token: str = dbutils.secrets.get(
-        scope="gx-cloud", key="sc_analytics_admin_token"
+        scope="gx-cloud", key="gx_tetris_org_token_editor"
     )
     gx_connector_name: Optional[str] = "pandas_runtime"
     batch_ids: dict[str, str] = field(

@@ -1,5 +1,4 @@
-from pyspark.sql import SparkSession
-from pyspark.dbutils import DBUtils
+from databricks.sdk.runtime import dbutils
 from typing import Optional, Union
 from dataclasses import dataclass
 from ruamel.yaml import YAML
@@ -7,10 +6,6 @@ from datetime import datetime, timedelta
 import json
 import re
 import os
-
-# get existing Spark context
-spark = SparkSession.builder.getOrCreate()
-dbutils = DBUtils(spark)
 
 
 @dataclass
@@ -25,7 +20,7 @@ class NbParam:
     dropdown: bool = False
 
     def __post_init__(self):
-        self.dbutils = DBUtils(SparkSession.builder.getOrCreate())
+        self.dbutils = dbutils
         self.widget = self.create_widget()
 
     def create_widget(self):
@@ -108,7 +103,7 @@ class Notebook:
     """
 
     def __post_init__(self):
-        self.dbutils = DBUtils(SparkSession.builder.getOrCreate())
+        self.dbutils = dbutils
         self.path = os.getcwd()
         self.context = self.get_context()
         self.url = self.get_url()
@@ -126,38 +121,38 @@ class Notebook:
             self.dbutils.notebook.entry_point.getDbutils()
             .notebook()
             .getContext()
-            .toJson()
-        )
+            .safeToJson()
+        ).get("attributes")
 
     def get_url(self) -> str:
-        host = self.context.get("tags").get("browserHostName")
+        host = self.context.get("browserHostName")
         if host is None:
             return None
         else:
-            org_id = self.context["tags"]["orgId"]
-            nb_id = self.context["tags"]["notebookId"]
+            org_id = self.context["orgId"]
+            nb_id = self.context["notebook_id"]
             return f"https://{host}/?o={org_id}#notebook/{nb_id}"
 
     def check_for_git(self) -> bool:
-        rel_path = self.context.get("extraContext").get("mlflowGitRelativePath")
+        rel_path = self.context.get("mlflowGitUrl")
         return True if rel_path is not None else False
 
     def get_name(self) -> str:
         if not self.has_git:
-            path = self.context.get("extraContext").get("notebook_path")
+            path = self.context.get("notebook_path")
             name = path.split("/")[-1]
         else:
             dirname = os.getcwd().split("/")[-1]
-            rel_path = self.context.get("extraContext").get("mlflowGitRelativePath")
+            rel_path = self.context.get("notebook_path")
             name = re.search(rf"{dirname}\/(\w+)$", rel_path).group(1)
         name = name.replace("nb_", "") if name.startswith("nb_") else name
         return name
 
     def get_repo(self) -> Union[str, None]:
-        return self.context.get("extraContext").get("mlflowGitUrl")
+        return self.context.get("mlflowGitUrl")
 
     def get_branch(self) -> Union[str, None]:
-        return self.context.get("extraContext").get("mlflowGitReference")
+        return self.context.get("mlflowGitReference")
 
     
 def find_config_file() -> str:

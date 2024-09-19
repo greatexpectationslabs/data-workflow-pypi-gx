@@ -1,4 +1,7 @@
 # Databricks notebook source
+# MAGIC %pip install pandas-gbq==0.20.0
+# MAGIC %pip install great-expectations==0.18.0
+# MAGIC %restart_python
 
 # COMMAND ----------
 
